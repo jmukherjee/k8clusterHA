@@ -44,6 +44,7 @@ chown vagrant:vagrant /home/vagrant/.ssh/id_rsa*
 
 # sudo -H -u vagrant bash -c 'ssh-agent bash'
 # sudo -H -u vagrant bash -c 'ssh-add /home/vagrant/.ssh/id_rsa'
+echo "SSH Connect: ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no vagrant@<name/ip>"
 SCRIPT
 
 scriptRSACallee = <<SCRIPT
@@ -54,6 +55,12 @@ SCRIPT
 Vagrant.configure("2") do |config|
   config.vm.box = 'ubuntu/bionic64'
   config.vm.synced_folder ".", "/vagrant", disabled: false
+
+  config.trigger.after :up do |trigger|
+    trigger.name = "POST ALL Provision"
+    trigger.info = "Cluster is up!! SSH Connect: ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no vagrant@<name/ip>"
+    #trigger.run_remote = {inline: "pg_dump dbname > /vagrant/outfile"}
+  end
 
   config.vm.define "vlb", primary: true do |vlb|
     vlb.vm.hostname = "vlb"
@@ -75,7 +82,7 @@ Vagrant.configure("2") do |config|
       apt-get install -y haproxy
     SHELL
     vlb.vm.provision "shell", :inline => scriptHAProxy
-    vlb.vm.provision "shell", :inline => scriptRSACaller
+    vlb.vm.provision "shell", inline: scriptRSACaller
   end
 
   N_MASTER.times do |i|
@@ -98,12 +105,8 @@ Vagrant.configure("2") do |config|
         apt-get install -y apache2
         echo "<H1>K8Master#{i+1} [#{MSTR_IP}]</H2><h2>(#{ID}) #{TS}</h2>" > /var/www/html/index.html
       SHELL
+      k8m.vm.provision "shell", :inline => scriptRSACaller
       k8m.vm.provision "shell", :inline => scriptRSACallee
-      k8m.trigger.after :up do |trigger|
-        trigger.run = { inline:
-          "vagrant ssh vlb -- ssh-keyscan -t rsa #{MSTR_IP} >> ~/.ssh/known_hosts"
-        }
-      end
     end
   end
 
@@ -127,12 +130,7 @@ Vagrant.configure("2") do |config|
         apt-get install -y apache2
         echo "<H1>k8worker#{i+1} [#{WRKR_IP}]</H2><h2>(#{ID}) #{TS}</h2>" > /var/www/html/index.html
       SHELL
-      # k8w.vm.provision "shell", :inline => scriptRSACallee
-      # k8w.trigger.after :up do |trigger|
-      #   trigger.run = { inline:
-      #     "vagrant ssh vlb -- ssh-keyscan -t rsa #{WRKR_IP} >> ~/.ssh/known_hosts"
-      #   }
-      # end
+      k8w.vm.provision "shell", :inline => scriptRSACallee
     end
   end
 end
