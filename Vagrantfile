@@ -9,6 +9,10 @@ IP_BASE = "192.168.10"
 
 
 scriptHAProxy = <<SCRIPT
+apt-get update
+echo "------- INSTALL: HA Proxy -------"
+apt-get install -y haproxy
+
 echo "------- CONFIGURE: HA Proxy -------"
 cat >> /etc/haproxy/haproxy.cfg <<EOF
 frontend main
@@ -76,13 +80,8 @@ Vagrant.configure("2") do |config|
       vb.customize ["modifyvm", :id, "--ioapic", "on"]
       vb.gui = false
     end
-    vlb.vm.provision "shell", inline: <<-SHELL
-      apt-get update
-      echo "------- INSTALL: HA Proxy -------"
-      apt-get install -y haproxy
-    SHELL
-    vlb.vm.provision "shell", :inline => scriptHAProxy
-    vlb.vm.provision "shell", inline: scriptRSACaller
+    vlb.vm.provision "shell", inline: scriptHAProxy
+    vlb.vm.provision "RSA Setup: VLB Caller", type: "shell", inline: scriptRSACaller
   end
 
   N_MASTER.times do |i|
@@ -94,19 +93,19 @@ Vagrant.configure("2") do |config|
       k8m.vm.provider "virtualbox" do |vb|
         vb.name = "k8HA-#{MSTR_NAME}"
 
-        vb.memory = "2048"
-        vb.cpus = 2
+        vb.memory = "1024"
+        vb.cpus = 1
 
         vb.customize ["modifyvm", :id, "--ioapic", "on"]
         vb.gui = false
       end
-      k8m.vm.provision "shell", inline: <<-SHELL
+      k8m.vm.provision "Master Setup: Apache", type: "shell", inline: <<-SHELL
         apt-get update
         apt-get install -y apache2
         echo "<H1>K8Master#{i+1} [#{MSTR_IP}]</H2><h2>(#{ID}) #{TS}</h2>" > /var/www/html/index.html
       SHELL
-      k8m.vm.provision "shell", :inline => scriptRSACaller
-      k8m.vm.provision "shell", :inline => scriptRSACallee
+      k8m.vm.provision "RSA Setup: Master Caller", type: "shell", inline: scriptRSACaller
+      k8m.vm.provision "RSA Setup: Master Callee", type: "shell", inline: scriptRSACallee
     end
   end
 
@@ -130,7 +129,7 @@ Vagrant.configure("2") do |config|
         apt-get install -y apache2
         echo "<H1>k8worker#{i+1} [#{WRKR_IP}]</H2><h2>(#{ID}) #{TS}</h2>" > /var/www/html/index.html
       SHELL
-      k8w.vm.provision "shell", :inline => scriptRSACallee
+      k8w.vm.provision "RSA Setup: Worker Callee", type: "shell", inline: scriptRSACallee
     end
   end
 end
